@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>投資ヒストリーシミュレーター</title>
+<title>100年投資シミュレーター</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
@@ -22,6 +22,12 @@ canvas{width:100%;height:280px;border:1px solid #ccc;border-radius:8px}
 <h1>📈 投資ヒストリーシミュレーター</h1>
 
 <div class="card">
+  <label>投資開始年</label>
+  <select id="startYear"></select>
+
+  <label>投資終了年</label>
+  <select id="endYear"></select>
+
   <label>初期投資額（円）</label>
   <input id="initial" type="number" value="1000000">
 
@@ -58,32 +64,38 @@ canvas{width:100%;height:280px;border:1px solid #ccc;border-radius:8px}
 </div>
 
 <div class="card">
-  <h2>資産推移（1925〜2025）</h2>
+  <h2>資産推移</h2>
   <canvas id="graph" width="350" height="280"></canvas>
-  <p class="small">※ 暴落年をタップすると説明が表示されます</p>
-</div>
-
-<div class="card">
-  <h2>📉 暴落一覧</h2>
-  <button onclick="showCrash(1929)">世界恐慌</button>
-  <button onclick="showCrash(1973)">オイルショック</button>
-  <button onclick="showCrash(2000)">ITバブル崩壊</button>
-  <button onclick="showCrash(2008)">リーマンショック</button>
-  <button onclick="showCrash(2020)">コロナショック</button>
 </div>
 
 <script>
+// ===== 年セレクト生成 =====
+const startSelect=document.getElementById("startYear");
+const endSelect=document.getElementById("endYear");
+
+for(let y=1925;y<=2025;y++){
+  startSelect.innerHTML+=`<option value="${y}">${y}年</option>`;
+  endSelect.innerHTML+=`<option value="${y}">${y}年</option>`;
+}
+startSelect.value=1980;
+endSelect.value=2025;
+
+// ===== 暴落情報 =====
 const crashInfo={
-1929:"世界恐慌：株価は最大90%下落。回復まで約25年を要した。",
-1973:"オイルショック：原油価格急騰でインフレと不況が同時発生。",
-2000:"ITバブル崩壊：NASDAQはピークから約75%下落。",
-2008:"リーマンショック：世界同時金融危機で株価は約50%下落。",
-2020:"コロナショック：パンデミックによる急落と急回復。"
+1929:"世界恐慌：株価最大90%下落、回復まで25年",
+1973:"オイルショック：インフレと景気後退",
+2000:"ITバブル崩壊：NASDAQ75%下落",
+2008:"リーマンショック：世界金融危機",
+2020:"コロナショック：パンデミック暴落"
 };
 
 function simulate(){
-  const years=[];
-  for(let y=1925;y<=2025;y++) years.push(y);
+  const sY=Number(startSelect.value);
+  const eY=Number(endSelect.value);
+  if(sY>=eY){ alert("開始年は終了年より前にしてください"); return; }
+
+  let years=[];
+  for(let y=sY;y<=eY;y++) years.push(y);
 
   let money=Number(initial.value);
   const monthlyAdd=Number(monthly.value)*12;
@@ -97,8 +109,7 @@ function simulate(){
     assets.push(money);
   });
 
-  const last=Math.round(assets.at(-1)*(1-tax));
-  final.innerText="¥"+last.toLocaleString();
+  final.innerText="¥"+Math.round(assets.at(-1)*(1-tax)).toLocaleString();
   drawGraph(assets);
 }
 
@@ -127,10 +138,6 @@ function drawGraph(data){
   ctx.strokeStyle="#007aff";
   ctx.lineWidth=2;
   ctx.stroke();
-}
-
-function showCrash(y){
-  alert(y+"年\n"+crashInfo[y]);
 }
 
 simulate();
