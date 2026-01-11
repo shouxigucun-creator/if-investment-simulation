@@ -2,18 +2,44 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>投資ヒストリーシミュレーター（オフライン）</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>投資ヒストリーシミュレーター</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body{font-family:-apple-system;background:#f5f5f7;margin:12px}
-.card{background:#fff;padding:14px;border-radius:12px;margin-bottom:12px}
-h1,h2{text-align:center}
-input,select,button{width:100%;padding:10px;margin-top:6px;font-size:16px}
-button{background:#007aff;color:#fff;border:none;border-radius:10px}
-#final{font-size:30px;font-weight:bold;text-align:center}
-canvas{width:100%;height:300px;border:1px solid #ccc;border-radius:8px}
-.small{font-size:13px;color:#555}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
+  margin:15px;
+  background:#f7f7f7;
+}
+h1,h2{text-align:center;}
+.card{
+  background:#fff;
+  padding:15px;
+  border-radius:12px;
+  margin-bottom:15px;
+}
+input,select,button{
+  width:100%;
+  padding:10px;
+  margin-top:8px;
+  font-size:16px;
+}
+button{
+  background:#007aff;
+  color:#fff;
+  border:none;
+  border-radius:10px;
+}
+.small{font-size:14px;color:#555;}
+#finalAsset{
+  font-size:28px;
+  font-weight:bold;
+  text-align:center;
+  margin-top:10px;
+}
 </style>
 </head>
 
@@ -23,94 +49,121 @@ canvas{width:100%;height:300px;border:1px solid #ccc;border-radius:8px}
 
 <div class="card">
   <label>初期投資額（円）</label>
-  <input id="initial" type="number" value="1000000">
-
-  <label>月額積立（円）</label>
-  <input id="monthly" type="number" value="30000">
+  <input id="initialMoney" type="number" value="1000000">
 
   <label>年利</label>
-  <select id="rate">
+  <select id="returnRate">
     <option value="0.03">3%</option>
     <option value="0.05" selected>5%</option>
     <option value="0.07">7%</option>
     <option value="0.10">10%</option>
   </select>
 
-  <label>
-    <input type="checkbox" id="crashOn" checked> 暴落を反映
-  </label>
-
-  <button onclick="simulate()">シミュレーション</button>
+  <button onclick="simulate()">シミュレーション実行</button>
 </div>
 
 <div class="card">
   <h2>最終資産</h2>
-  <div id="final">¥0</div>
+  <div id="finalAsset">¥0</div>
 </div>
 
 <div class="card">
-  <h2>資産推移（1925〜2025）</h2>
-  <canvas id="graph" width="350" height="300"></canvas>
-  <p class="small">横軸：年　縦軸：金額</p>
+  <h2>資産推移（1925年〜2025年）</h2>
+  <canvas id="assetChart" height="120"></canvas>
+  <p class="small">※ 暴落年をタップすると詳細説明が表示されます</p>
+</div>
+
+<!-- 暴落モーダル -->
+<div id="crashModal" style="
+display:none; position:fixed; inset:0;
+background:rgba(0,0,0,0.5); z-index:999;">
+  <div style="
+  background:#fff; margin:20% auto; padding:15px;
+  width:90%; border-radius:12px;">
+    <h3 id="crashTitle"></h3>
+    <p id="crashText" class="small"></p>
+    <button onclick="closeCrash()">閉じる</button>
+  </div>
 </div>
 
 <script>
-const crashes={
-  1929:"世界恐慌：株価90%下落、回復まで25年",
-  2008:"リーマンショック：世界金融危機",
-  2020:"コロナショック：パンデミック暴落"
+// ===== 暴落データ =====
+const crashInfo={
+  1929:{title:"世界恐慌",text:"NYダウが最大約90%下落。回復まで約25年。"},
+  1973:{title:"オイルショック",text:"インフレと不況が同時進行。"},
+  1987:{title:"ブラックマンデー",text:"1日で20%以上の暴落。"},
+  2000:{title:"ITバブル崩壊",text:"NASDAQが約75%下落。"},
+  2008:{title:"リーマンショック",text:"世界同時金融危機。"},
+  2020:{title:"コロナショック",text:"パンデミックによる急落。"}
 };
 
-function simulate(){
-  const years=[];
-  for(let y=1925;y<=2025;y++) years.push(y);
+let chart;
 
-  let money=Number(initial.value);
-  const monthlyAdd=Number(monthly.value)*12;
-  const rate=Number(rate.value);
+// ===== シミュレーション =====
+function simulate(){
+  const startYear=1925;
+  const endYear=2025;
+  const years=[];
+  for(let y=startYear;y<=endYear;y++) years.push(y);
+
+  let money=Number(initialMoney.value);
+  const rate=Number(returnRate.value);
   const assets=[];
 
   years.forEach(y=>{
-    if(crashOn.checked && crashes[y]) money*=0.7;
-    money=(money+monthlyAdd)*(1+rate);
-    assets.push(money);
+    if(y===1929) money*=0.6;
+    if(y===2008) money*=0.7;
+    if(y===2020) money*=0.8;
+    money*=1+rate;
+    assets.push(Math.round(money));
   });
 
-  final.innerText="¥"+Math.round(assets.at(-1)).toLocaleString();
-  drawGraph(assets);
+  finalAsset.innerText="¥"+assets[assets.length-1].toLocaleString();
+  drawChart(years,assets);
 }
 
-function drawGraph(data){
-  const c=document.getElementById("graph");
-  const ctx=c.getContext("2d");
-  ctx.clearRect(0,0,c.width,c.height);
-
-  const max=Math.max(...data);
-  const min=0;
-  const pad=30;
-  const w=c.width-pad*2;
-  const h=c.height-pad*2;
-
-  // 軸
-  ctx.beginPath();
-  ctx.moveTo(pad,pad);
-  ctx.lineTo(pad,c.height-pad);
-  ctx.lineTo(c.width-pad,c.height-pad);
-  ctx.stroke();
-
-  // 線
-  ctx.beginPath();
-  data.forEach((v,i)=>{
-    const x=pad+(i/(data.length-1))*w;
-    const y=c.height-pad-((v-min)/(max-min))*h;
-    if(i===0) ctx.moveTo(x,y);
-    else ctx.lineTo(x,y);
+// ===== グラフ描画 =====
+function drawChart(labels,data){
+  if(chart) chart.destroy();
+  chart=new Chart(assetChart,{
+    type:"line",
+    data:{
+      labels,
+      datasets:[{
+        label:"資産額（円）",
+        data,
+        borderWidth:2,
+        tension:0.2
+      }]
+    },
+    options:{
+      scales:{
+        x:{title:{display:true,text:"年"}},
+        y:{
+          title:{display:true,text:"金額（円）"},
+          ticks:{callback:v=>"¥"+v.toLocaleString()}
+        }
+      },
+      onClick:(e,els)=>{
+        if(!els.length) return;
+        const year=labels[els[0].index];
+        if(crashInfo[year]) openCrash(crashInfo[year]);
+      }
+    }
   });
-  ctx.strokeStyle="#007aff";
-  ctx.lineWidth=2;
-  ctx.stroke();
 }
 
+// ===== モーダル =====
+function openCrash(info){
+  crashTitle.innerText=info.title;
+  crashText.innerText=info.text;
+  crashModal.style.display="block";
+}
+function closeCrash(){
+  crashModal.style.display="none";
+}
+
+// 初期表示
 simulate();
 </script>
 
