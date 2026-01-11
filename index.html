@@ -1,136 +1,162 @@
+<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>100年投資シミュレーター</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>100年投資シミュレーター</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body {
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  margin: 12px;
-  background: #f7f7f7;
+body{
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  margin:12px;background:#f4f6f8
 }
-h1 { font-size: 22px; }
-.card {
-  background: white;
-  padding: 12px;
-  margin-bottom: 12px;
-  border-radius: 10px;
+h1{font-size:22px}
+.card{
+  background:#fff;padding:12px;margin-bottom:12px;
+  border-radius:10px
 }
-label { font-weight: bold; }
-select, input, button {
-  width: 100%;
-  padding: 8px;
-  margin-top: 6px;
+label{font-weight:bold}
+input,select,button{
+  width:100%;padding:8px;margin-top:6px
 }
-button {
-  background: #007aff;
-  color: white;
-  border: none;
-  border-radius: 8px;
+button{
+  background:#007aff;color:#fff;border:none;border-radius:8px
 }
-.small { font-size: 13px; color: #555; }
+.small{font-size:13px;color:#555}
+#finalAmount{
+  font-size:24px;
+  font-weight:bold;
+  color:#007aff;
+  margin-top:8px
+}
+canvas{margin-top:20px}
 </style>
 </head>
 
 <body>
 
 <h1>📈 100年投資シミュレーター</h1>
+<p class="small">
+※ 過去データを基にした仮定であり、将来の成果を保証するものではありません
+</p>
 
 <div class="card">
-  <label>初期投資額（円）</label>
-  <input type="number" id="money" value="1000000">
+<label>月額積立（円）</label>
+<input id="monthly" type="number" value="30000">
 </div>
 
 <div class="card">
-  <label>保有銘柄</label>
-  <select id="stock">
-    <option value="0.07">オルカン（全世界株式）</option>
-    <option value="0.08">S&P500</option>
-    <option value="0.06">高配当株ETF</option>
-    <option value="0.09">NASDAQ100</option>
-    <option value="0.065">TOPIX</option>
-    <option value="0.075">日経225</option>
-    <option value="0.10">任天堂</option>
-    <option value="0.07">三菱UFJ</option>
-    <option value="0.06">トヨタ自動車</option>
-  </select>
-  <p class="small">※ 過去平均を元にした仮定利回り</p>
+<label>想定利回り</label>
+<select id="rate">
+  <option value="0.03">3%</option>
+  <option value="0.05">5%</option>
+  <option value="0.07" selected>7%</option>
+  <option value="0.10">10%</option>
+</select>
 </div>
 
 <div class="card">
-  <label>投資期間</label>
-  <select id="years">
-    <option value="100">1925年〜2025年（100年）</option>
-  </select>
+<label>口座区分</label>
+<select id="account">
+  <option value="nisa">新NISA（非課税）</option>
+  <option value="tax">特定口座（税20%）</option>
+</select>
 </div>
 
 <div class="card">
-  <button onclick="simulate()">シミュレーション実行</button>
+<label>銘柄①</label>
+<select id="brand1">
+  <option value="0.001">オルカン</option>
+  <option value="0.001">S&P500</option>
+  <option value="0.002">NASDAQ100</option>
+  <option value="0.003">高配当株</option>
+  <option value="0.0015">TOPIX</option>
+  <option value="0.002">任天堂</option>
+</select>
+
+<label>銘柄②（比較）</label>
+<select id="brand2">
+  <option value="">比較しない</option>
+  <option value="0.001">オルカン</option>
+  <option value="0.001">S&P500</option>
+  <option value="0.002">NASDAQ100</option>
+  <option value="0.003">高配当株</option>
+  <option value="0.0015">TOPIX</option>
+  <option value="0.002">任天堂</option>
+</select>
 </div>
 
 <div class="card">
-  <canvas id="chart"></canvas>
+<label>
+  <input type="checkbox" id="crashToggle" checked>
+  暴落を反映する
+</label>
 </div>
 
 <div class="card">
-  <h3>📉 主な暴落イベント</h3>
-  <ul class="small">
-    <li><b>1929 世界恐慌</b>：株価 −80%、回復まで約25年</li>
-    <li><b>1973 オイルショック</b>：インフレと株安の同時進行</li>
-    <li><b>1987 ブラックマンデー</b>：1日で −20%</li>
-    <li><b>2000 ITバブル崩壊</b>：NASDAQ −75%</li>
-    <li><b>2008 リーマンショック</b>：世界株 −50%</li>
-    <li><b>2020 コロナショック</b>：1か月で −30%</li>
-  </ul>
+<button onclick="simulate()">シミュレーション実行</button>
+
+<div id="finalAmount">最終資産：— 円</div>
+<p id="notice" class="small"></p>
 </div>
+
+<canvas id="chart"></canvas>
 
 <script>
 let chart;
+const crashYears=[1929,1973,1987,2000,2008,2020];
 
-function simulate() {
-  const startMoney = Number(document.getElementById("money").value);
-  const rate = Number(document.getElementById("stock").value);
-  const years = 100;
+function calc(monthly,rate,fee,tax,crash){
+  let total=0,data=[];
+  for(let y=1925;y<=2025;y++){
+    total=(total+monthly*12)*(1+rate-fee);
+    if(crash && crashYears.includes(y)) total*=0.7;
+    data.push(Math.round(total*(1-tax)));
+  }
+  return data;
+}
 
-  let data = [];
-  let labels = [];
-  let money = startMoney;
+function simulate(){
+  const m=+monthly.value;
+  const r=+rate.value;
+  const tax=account.value==="tax"?0.2:0;
+  const fee1=+brand1.value;
+  const fee2=brand2.value?+brand2.value:null;
+  const crash=crashToggle.checked;
 
-  for (let i = 0; i <= years; i++) {
-    const year = 1925 + i;
+  const d1=calc(m,r,fee1,tax,crash);
+  const d2=fee2!==null?calc(m,r,fee2,tax,crash):null;
 
-    // 暴落イベント
-    if (year === 1929) money *= 0.4;
-    if (year === 1973) money *= 0.7;
-    if (year === 1987) money *= 0.8;
-    if (year === 2000) money *= 0.6;
-    if (year === 2008) money *= 0.5;
-    if (year === 2020) money *= 0.7;
+  const labels=[...Array(101)].map((_,i)=>1925+i);
 
-    money *= (1 + rate);
-    labels.push(year);
-    data.push(Math.round(money));
+  // ✅ 新NISA上限チェック
+  const invested=m*12*100;
+  if(account.value==="nisa" && invested>18000000){
+    notice.innerText="⚠ 新NISA上限（1,800万円）を超えています";
+  }else{
+    notice.innerText="";
   }
 
-  if (chart) chart.destroy();
+  // ✅ 最終資産を大きく表示
+  finalAmount.innerText=
+    "最終資産： " + d1.at(-1).toLocaleString() + " 円";
 
-  chart = new Chart(document.getElementById("chart"), {
-    type: "line",
-    data: {
-      labels: labels,
-      datasets: [{
-        label: "資産推移（円）",
-        data: data,
-        borderWidth: 2
-      }]
+  if(chart) chart.destroy();
+  chart=new Chart(chartCanvas,{
+    type:"line",
+    data:{
+      labels,
+      datasets:[
+        {label:"銘柄①",data:d1},
+        d2?{label:"銘柄②",data:d2}:null
+      ].filter(Boolean)
     },
-    options: {
-      scales: {
-        x: { title: { display: true, text: "年代" }},
-        y: { title: { display: true, text: "金額（円）" }}
+    options:{
+      scales:{
+        x:{title:{display:true,text:"年"}},
+        y:{title:{display:true,text:"金額（円）"}}
       }
     }
   });
@@ -138,4 +164,4 @@ function simulate() {
 </script>
 
 </body>
-</html
+</html>
