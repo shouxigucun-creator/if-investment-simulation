@@ -2,9 +2,61 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>動作確認</title>
+  <title>投資シミュレーター</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+    }
+    input, button {
+      margin: 5px 0;
+      padding: 5px;
+    }
+    #result {
+      margin-top: 20px;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
-  <h1>表示されたら成功</h1>
+  <h1>投資シミュレーター</h1>
+
+  <label>
+    毎月の積立額（円）<br>
+    <input type="number" id="monthly" value="30000">
+  </label><br>
+
+  <label>
+    年利（%）<br>
+    <input type="number" id="rate" value="5">
+  </label><br>
+
+  <label>
+    年数<br>
+    <input type="number" id="years" value="20">
+  </label><br>
+
+  <button onclick="calculate()">計算する</button>
+
+  <div id="result"></div>
+
+  <script>
+    function calculate() {
+      const monthly = Number(document.getElementById("monthly").value);
+      const rate = Number(document.getElementById("rate").value) / 100;
+      const years = Number(document.getElementById("years").value);
+
+      const months = years * 12;
+      const monthlyRate = rate / 12;
+
+      let total = 0;
+      for (let i = 0; i < months; i++) {
+        total = total * (1 + monthlyRate) + monthly;
+      }
+
+      document.getElementById("result").innerText =
+        `最終金額：約 ${Math.round(total).toLocaleString()} 円`;
+    }
+  </script>
 </body>
 </html>
