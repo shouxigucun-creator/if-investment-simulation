@@ -1,108 +1,130 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>新NISA 実在年表モード</title>
+<title>新NISA 実在年表モード（元本表示）</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 body { font-family:sans-serif; background:#f4f6f8; padding:20px; }
-.card { background:#fff; padding:20px; border-radius:10px; max-width:650px; margin:auto; }
-input, button { width:100%; padding:10px; margin-top:10px; }
-.info { font-size:14px; margin-top:10px; color:#444; }
+.card { background:#fff; padding:20px; border-radius:10px; max-width:700px; margin:auto; }
+input, select, button { width:100%; padding:10px; margin-top:10px; }
+.info { font-size:14px; color:#444; margin-top:10px; }
 </style>
 </head>
 <body>
 
 <div class="card">
-<h2>📉 新NISA 実在年表モード</h2>
-<p class="info">
-固定イベント：ITバブル / リーマン / コロナ<br>
-「分かっていても耐えられるか」を検証
-</p>
+<h2>📉 新NISA 実在年表モード（元本付き）</h2>
+
+<label>開始年（1925〜2025）</label>
+<select id="startYear">
+<script>
+for(let y=1925;y<=2025;y++){
+  document.write(`<option value="${y}">${y}年</option>`);
+}
+</script>
+</select>
 
 <label>毎月の積立額（円）</label>
 <input type="number" id="monthly" value="100000">
 
 <button onclick="nextYear()">▶ 1年進める</button>
 
-<canvas id="chart" height="220"></canvas>
+<canvas id="chart" height="240"></canvas>
 
 <p>
+元本：¥<span id="principal">0</span><br>
 S&P500：¥<span id="sp">0</span><br>
 オルカン：¥<span id="ac">0</span>
+</p>
+
+<p class="info">
+※ 元本＝実際に積み立てた累計金額<br>
+※ 「評価額が元本を何年割るか」が一番キツい
 </p>
 </div>
 
 <script>
-let year = 0;
+let currentYear;
 let sp = 0;
 let ac = 0;
+let principal = 0;
+let yearIndex = 0;
 
 const labels = [];
 const spData = [];
 const acData = [];
+const principalData = [];
 
-// 年表イベント定義
+// 実在イベント（年ベース）
 const events = {
-  10: { sp: -0.20, ac: -0.15, label: "ITバブル崩壊" },
-  11: { sp: -0.15, ac: -0.10, label: "ITバブル続落" },
-  12: { sp: -0.10, ac: -0.08, label: "ITバブル低迷" },
-  18: { sp: -0.37, ac: -0.30, label: "リーマンショック" },
-  30: { sp: -0.30, ac: -0.25, label: "コロナショック" }
+  1929:{ sp:-0.30, ac:-0.25, label:"世界恐慌" },
+  2000:{ sp:-0.20, ac:-0.15, label:"ITバブル崩壊" },
+  2001:{ sp:-0.15, ac:-0.10, label:"ITバブル続落" },
+  2002:{ sp:-0.10, ac:-0.08, label:"ITバブル低迷" },
+  2008:{ sp:-0.37, ac:-0.30, label:"リーマンショック" },
+  2020:{ sp:-0.30, ac:-0.25, label:"コロナショック" }
 };
 
 // 平常年リターン
-const normal = { sp: 0.08, ac: 0.06 };
+const normal = { sp:0.08, ac:0.06 };
 
 const chart = new Chart(document.getElementById("chart"), {
-  type: "line",
-  data: {
+  type:"line",
+  data:{
     labels,
-    datasets: [
-      { label: "S&P500", data: spData, borderWidth: 2 },
-      { label: "オルカン", data: acData, borderWidth: 2 }
+    datasets:[
+      { label:"S&P500", data:spData, borderWidth:2 },
+      { label:"オルカン", data:acData, borderWidth:2 },
+      { label:"元本", data:principalData, borderDash:[5,5], borderWidth:2 }
     ]
   },
-  options: {
-    responsive: true,
-    scales: { y: { beginAtZero: true } }
+  options:{
+    responsive:true,
+    scales:{ y:{ beginAtZero:true } }
   }
 });
 
-function nextYear() {
-  if (year >= 35) return;
+function nextYear(){
+  if(yearIndex === 0){
+    currentYear = Number(document.getElementById("startYear").value);
+  }
 
-  year++;
+  yearIndex++;
   const monthly = Number(document.getElementById("monthly").value);
+
+  principal += monthly * 12;
   sp += monthly * 12;
   ac += monthly * 12;
 
   let rSP = normal.sp;
   let rAC = normal.ac;
-  let eventText = "通常年";
 
-  if (events[year]) {
-    rSP = events[year].sp;
-    rAC = events[year].ac;
-    eventText = events[year].label;
-    alert(`📉 ${year}年目：${eventText}`);
+  if(events[currentYear]){
+    rSP = events[currentYear].sp;
+    rAC = events[currentYear].ac;
+    alert(`📉 ${currentYear}年：${events[currentYear].label}`);
   }
 
   sp *= (1 + rSP);
   ac *= (1 + rAC);
 
-  labels.push(`${year}年`);
+  labels.push(`${currentYear}年`);
   spData.push(Math.round(sp));
   acData.push(Math.round(ac));
+  principalData.push(principal);
 
   chart.update();
 
+  document.getElementById("principal").textContent = principal.toLocaleString();
   document.getElementById("sp").textContent = Math.round(sp).toLocaleString();
   document.getElementById("ac").textContent = Math.round(ac).toLocaleString();
 
-  if (year === 35) {
-    alert("🎉 35年完走\nあなたが耐えられた方が『正解』です");
+  currentYear++;
+
+  if(currentYear > 2025){
+    alert("🎉 最終年まで到達\n元本ラインをどう超えたか確認してみてください");
   }
 }
 </script>
