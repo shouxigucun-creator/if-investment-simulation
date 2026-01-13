@@ -2,145 +2,160 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>100年投資シミュレーター</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>住宅ローンシミュレーター</title>
 <style>
-body{font-family:-apple-system;background:#f5f5f7;margin:12px}
-.card{background:#fff;padding:14px;border-radius:12px;margin-bottom:12px}
-h1,h2{text-align:center}
-input,select,button{width:100%;padding:10px;margin-top:6px;font-size:16px}
-button{background:#007aff;color:#fff;border:none;border-radius:10px}
-canvas{width:100%;height:280px;border:1px solid #ccc;border-radius:8px}
-#final{font-size:30px;font-weight:bold;text-align:center}
-.small{font-size:13px;color:#555}
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: auto; padding: 20px; }
+    h1 { text-align: center; }
+    label { display: block; margin-top: 10px; }
+    input, select { padding: 5px; width: 100%; max-width: 200px; margin-top: 5px; }
+    .section { border: 1px solid #ccc; padding: 15px; margin-top: 15px; border-radius: 5px; }
+    #result { margin-top: 20px; padding: 15px; border: 2px solid #007bff; border-radius: 5px; background-color: #f0f8ff; }
+    canvas { margin-top: 20px; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-
 <body>
 
-<h1>📈 投資ヒストリーシミュレーター</h1>
+<h1>住宅ローンシミュレーター</h1>
 
-<div class="card">
-  <label>投資開始年</label>
-  <select id="startYear"></select>
+<div class="section">
+    <label>物件タイプ：
+        <select id="propertyType">
+            <option value="house">一戸建て</option>
+            <option value="mansion">マンション</option>
+        </select>
+    </label>
 
-  <label>投資終了年</label>
-  <select id="endYear"></select>
+    <label>物件価格（万円）：
+        <input type="number" id="price" value="4000" min="2000" max="15000">
+    </label>
 
-  <label>初期投資額（円）</label>
-  <input id="initial" type="number" value="1000000">
+    <label>頭金（万円）：
+        <input type="number" id="downPayment" value="0" min="0">
+    </label>
 
-  <label>月額積立（円）</label>
-  <input id="monthly" type="number" value="30000">
+    <label>ローン年数：
+        <select id="years">
+            <option value="35">35年</option>
+            <option value="40">40年</option>
+            <option value="50">50年</option>
+        </select>
+    </label>
 
-  <label>銘柄</label>
-  <select id="stock">
-    <option value="0.05">オルカン（全世界株）</option>
-    <option value="0.07">S&P500</option>
-    <option value="0.09">NASDAQ100</option>
-    <option value="0.04">高配当株</option>
-    <option value="0.08">日本株（任天堂）</option>
-    <option value="0.06">日本株（三菱UFJ）</option>
-    <option value="0.06">日本株（三菱電機）</option>
-  </select>
+    <label>金利タイプ：
+        <select id="interestType">
+            <option value="fixed">固定金利</option>
+            <option value="variable">変動金利</option>
+        </select>
+    </label>
 
-  <label>口座種別</label>
-  <select id="account">
-    <option value="nisa">新NISA（非課税）</option>
-    <option value="tax">特定口座（税引き）</option>
-  </select>
+    <label>金利（%）：
+        <input type="number" id="interestRate" value="1.5" step="0.01" min="0.1" max="5">
+    </label>
 
-  <label>
-    <input type="checkbox" id="crashOn" checked> 暴落を反映
-  </label>
+    <div id="houseFields" style="display:block;">
+        <label>固定資産税（年額万円）：
+            <input type="number" id="propertyTax" value="12">
+        </label>
+        <label>火災保険（年額万円）：
+            <input type="number" id="fireInsurance" value="5">
+        </label>
+    </div>
 
-  <button onclick="simulate()">シミュレーション</button>
+    <div id="mansionFields" style="display:none;">
+        <label>修繕積立金（月額万円）：
+            <input type="number" id="repairFee" value="2">
+        </label>
+        <label>管理費（月額万円）：
+            <input type="number" id="managementFee" value="1.5">
+        </label>
+    </div>
+
+    <button onclick="calculateLoan()" style="margin-top:15px;padding:10px 20px;">計算する</button>
 </div>
 
-<div class="card">
-  <h2>最終資産（手残り）</h2>
-  <div id="final">¥0</div>
-</div>
-
-<div class="card">
-  <h2>資産推移</h2>
-  <canvas id="graph" width="350" height="280"></canvas>
-</div>
+<div id="result"></div>
+<canvas id="comparisonChart" height="400"></canvas>
 
 <script>
-// ===== 年セレクト生成 =====
-const startSelect=document.getElementById("startYear");
-const endSelect=document.getElementById("endYear");
+let comparisonChart;
 
-for(let y=1925;y<=2025;y++){
-  startSelect.innerHTML+=`<option value="${y}">${y}年</option>`;
-  endSelect.innerHTML+=`<option value="${y}">${y}年</option>`;
-}
-startSelect.value=1980;
-endSelect.value=2025;
+function calculateLoan() {
+    const propertyType = document.getElementById('propertyType').value;
+    const price = Number(document.getElementById('price').value) * 10000;
+    const downPayment = Number(document.getElementById('downPayment').value) * 10000;
+    const loanAmount = price - downPayment;
 
-// ===== 暴落情報 =====
-const crashInfo={
-1929:"世界恐慌：株価最大90%下落、回復まで25年",
-1973:"オイルショック：インフレと景気後退",
-2000:"ITバブル崩壊：NASDAQ75%下落",
-2008:"リーマンショック：世界金融危機",
-2020:"コロナショック：パンデミック暴落"
-};
+    const years = Number(document.getElementById('years').value);
+    const interestRate = Number(document.getElementById('interestRate').value) / 100;
+    const months = years * 12;
+    const monthlyRate = interestRate / 12;
 
-function simulate(){
-  const sY=Number(startSelect.value);
-  const eY=Number(endSelect.value);
-  if(sY>=eY){ alert("開始年は終了年より前にしてください"); return; }
+    let otherMonthly = 0;
+    if(propertyType==='house'){
+        const tax = Number(document.getElementById('propertyTax').value) * 10000;
+        const insurance = Number(document.getElementById('fireInsurance').value) * 10000;
+        otherMonthly = (tax + insurance)/12;
+    }else{
+        const repair = Number(document.getElementById('repairFee').value)*10000;
+        const management = Number(document.getElementById('managementFee').value)*10000;
+        otherMonthly = repair + management;
+    }
 
-  let years=[];
-  for(let y=sY;y<=eY;y++) years.push(y);
+    // 元利均等返済
+    const M = loanAmount*(monthlyRate*Math.pow(1+monthlyRate,months))/(Math.pow(1+monthlyRate,months)-1);
+    const totalMonthly = M + otherMonthly;
 
-  let money=Number(initial.value);
-  const monthlyAdd=Number(monthly.value)*12;
-  const rate=Number(stock.value);
-  const tax=account.value==="tax"?0.20315:0;
-  const assets=[];
+    document.getElementById('result').innerHTML = `
+        <h2>計算結果</h2>
+        <p>ローン借入額：${loanAmount.toLocaleString()}円</p>
+        <p>家本体ローン返済額：${M.toLocaleString()}円</p>
+        <p>その他費用：${otherMonthly.toLocaleString()}円</p>
+        <p><strong>毎月の合計支払額：${totalMonthly.toLocaleString()}円</strong></p>
+        <p>総支払額（ローン＋その他費用）：${(totalMonthly*months).toLocaleString()}円</p>
+    `;
 
-  years.forEach(y=>{
-    if(crashOn.checked && crashInfo[y]) money*=0.7;
-    money=(money+monthlyAdd)*(1+rate);
-    assets.push(money);
-  });
+    // グラフデータ作成（家本体 vs 家本体＋その他費用）
+    const labels = [];
+    const loanOnlyData = [];
+    const totalData = [];
+    for(let i=1;i<=months;i++){
+        labels.push(i);
+        loanOnlyData.push(M);
+        totalData.push(M + otherMonthly);
+    }
 
-  final.innerText="¥"+Math.round(assets.at(-1)*(1-tax)).toLocaleString();
-  drawGraph(assets);
-}
-
-function drawGraph(data){
-  const c=document.getElementById("graph");
-  const ctx=c.getContext("2d");
-  ctx.clearRect(0,0,c.width,c.height);
-
-  const max=Math.max(...data);
-  const pad=30;
-  const w=c.width-pad*2;
-  const h=c.height-pad*2;
-
-  ctx.beginPath();
-  ctx.moveTo(pad,pad);
-  ctx.lineTo(pad,c.height-pad);
-  ctx.lineTo(c.width-pad,c.height-pad);
-  ctx.stroke();
-
-  ctx.beginPath();
-  data.forEach((v,i)=>{
-    const x=pad+(i/(data.length-1))*w;
-    const y=c.height-pad-(v/max)*h;
-    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-  });
-  ctx.strokeStyle="#007aff";
-  ctx.lineWidth=2;
-  ctx.stroke();
+    const ctx = document.getElementById('comparisonChart').getContext('2d');
+    if(comparisonChart) comparisonChart.destroy();
+    comparisonChart = new Chart(ctx,{
+        type:'line',
+        data:{
+            labels:labels,
+            datasets:[
+                {label:'家本体ローン返済額', data:loanOnlyData, borderColor:'blue', fill:false},
+                {label:'家本体＋固定資産税等の支払額', data:totalData, borderColor:'orange', fill:false}
+            ]
+        },
+        options:{
+            responsive:true,
+            plugins:{title:{display:true,text:'家本体と実際の月々支払額比較'}, tooltip:{mode:'index', intersect:false}},
+            interaction:{mode:'index', intersect:false},
+            scales:{y:{title:{display:true,text:'円'}}, x:{title:{display:true,text:'月'}}}
+        }
+    });
 }
 
-simulate();
+// 物件タイプ切替
+document.getElementById('propertyType').addEventListener('change',function(){
+    if(this.value==='house'){
+        document.getElementById('houseFields').style.display='block';
+        document.getElementById('mansionFields').style.display='none';
+    } else{
+        document.getElementById('houseFields').style.display='none';
+        document.getElementById('mansionFields').style.display='block';
+    }
+});
 </script>
 
 </body>
